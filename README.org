@@ -1,0 +1,118 @@
+# -*- org-confirm-babel-evaluate: nil -*-
+#+OPTIONS: ^:nil
+#+OPTIONS: html-postamble:nil
+#+LANGUAGE: en-us
+#+TITLE: README
+#+AUTHOR: Richard Zetterberg <richard.zetterberg@gmail.com>
+
+This is a RME of the problem "DELETE ignores top-level filtering of resource embeddings" for PostgREST.
+
+To run it, you need to have [[https://wiki.nixos.org/wiki/Nix_(package_manager)][nix]] and [[https://github.com/tmux/tmux/wiki][tmux]] installed. If you have that, you can just run:
+
+#+BEGIN_SRC sh
+./start.sh
+#+END_SRC
+
+That will start a tmux session that has 3 windows:
+
+1. Runs PostgREST
+  - Uses the script [[./components/api/bin/start.sh][components/api/bin/start.sh]] to run PostgREST
+2. Runs PostgreSQL
+  - Uses the script [[./components/databawse/bin/start.sh][components/database/bin/start.sh]] to run PostgreSQL
+3. A nix shell waiting for you to run the test
+
+Inside window 3, you then run the test using:
+
+#+BEGIN_SRC sh
+./test.sh
+#+END_SRC
+
+This script will clean the database and run a [[https://hurl.dev][hurl]] test that has assertions for the expected behavior.
+
+The database has the following DDL:
+
+#+NAME: ddl
+#+BEGIN_SRC plantuml :file ./diagrams/ddl.png :exports results
+@startuml
+skinparam dpi 300
+skinparam shadowing false
+skinparam monochrome true
+skinparam nodesep 80
+skinparam ranksep 80
+
+object "<b>Films</b>" as films {
+  <u>id</u>
+  name
+  director_id
+}
+
+object "<b>Directors</b>" as directors {
+  <u>id</u>
+  name
+}
+
+films " *" -RIGHT- "1 " directors
+
+@enduml
+#+END_SRC
+
+#+RESULTS: ddl
+[[file:./diagrams/ddl.png]]
+
+Using the API the test will create 2 directors:
+
+1. *Director A*
+2. *Director B*
+
+It will then create 3 movies belonging to *Director A* and 2 movies belonging to *Director B*.
+
+Once all the data has been created, it makes sure that the resource embeddings top-level filtering has been setup correctly by sending two ~GET~ requests:
+
+#+BEGIN_SRC hurl
+GET http://localhost:8080/films?select=*,director:directors!inner(*)&director.id=eq.{{ director_a_id }}
+HTTP 200
+[Asserts]
+jsonpath "$" count == 3
+
+
+GET http://localhost:8080/films?select=*,director:directors!inner(*)&director.id=eq.{{ director_b_id }}
+HTTP 200
+[Asserts]
+jsonpath "$" count == 2
+#+END_SRC
+
+Then finally, it tries to remove all films belonging to *Director B* using resource embeddings top-level filtering:
+
+#+BEGIN_SRC hurl
+DELETE http://localhost:8080/films?select=*,director:directors!inner(*)&director.id=eq.{{ director_b_id }}
+HTTP 204
+#+END_SRC
+
+That should remove 2 movies and getting all movies should return 3 movies:
+
+#+BEGIN_SRC hurl
+GET http://localhost:8080/films
+HTTP 200
+[Asserts]
+jsonpath "$" count == 3
+#+END_SRC
+
+However, the final assertion will fail with:
+
+#+BEGIN_EXAMPLE
+error: Assert failure
+  --> ./test.hurl:71:0
+   |
+   | GET http://localhost:8080/films
+   | ...
+71 | jsonpath "$" count == 3
+   |   actual:   integer <0>
+   |   expected: integer <3>
+   |
+#+END_EXAMPLE
+
+The reason for this is because PostgREST has actually run a ~DELETE~ without a ~WHERE~-clause on the ~api.films~ view (taken from the PostgreSQL log):
+
+#+BEGIN_SRC sql
+DELETE FROM "api"."films"  RETURNING 1
+#+END_SRC
