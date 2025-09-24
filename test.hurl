@@ -49,19 +49,19 @@ HTTP 201
 jsonpath "$" count == 5
 
 
-GET http://localhost:8080/films?select=*,director:directors!inner(name)&director.name=eq.John
+GET http://localhost:8080/films?select=*,director:directors!inner(*)&director.name=eq.John
 HTTP 200
 [Asserts]
 jsonpath "$" count == 3
 
 
-GET http://localhost:8080/films?select=*,director:directors!inner(name)&director.name=eq.Albert
+GET http://localhost:8080/films?select=*,director:directors!inner(*)&director.name=eq.Albert
 HTTP 200
 [Asserts]
 jsonpath "$" count == 2
 
 
-DELETE http://localhost:8080/films?select=*,director:directors!inner(name)&director.name=eq.Albert
+DELETE http://localhost:8080/films?select=*,director:directors!inner(*)&director.name=eq.Albert
 HTTP 204
 
 
