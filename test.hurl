@@ -2,7 +2,7 @@ POST http://localhost:8080/directors
 Prefer: return=representation
 Accept: application/vnd.pgrst.object
 {
-  "name": "Director A"
+  "name": "John"
 }
 HTTP 201
 [Captures]
@@ -13,7 +13,7 @@ POST http://localhost:8080/directors
 Prefer: return=representation
 Accept: application/vnd.pgrst.object
 {
-  "name": "Director B"
+  "name": "Albert"
 }
 HTTP 201
 [Captures]
@@ -49,19 +49,19 @@ HTTP 201
 jsonpath "$" count == 5
 
 
-GET http://localhost:8080/films?select=*,director:directors!inner(*)&director.id=eq.{{ director_a_id }}
+GET http://localhost:8080/films?select=*,director:directors!inner(name)&director.name=eq.John
 HTTP 200
 [Asserts]
 jsonpath "$" count == 3
 
 
-GET http://localhost:8080/films?select=*,director:directors!inner(*)&director.id=eq.{{ director_b_id }}
+GET http://localhost:8080/films?select=*,director:directors!inner(name)&director.name=eq.Albert
 HTTP 200
 [Asserts]
 jsonpath "$" count == 2
 
 
-DELETE http://localhost:8080/films?select=*,director:directors!inner(*)&director.id=eq.{{ director_b_id }}
+DELETE http://localhost:8080/films?select=*,director:directors!inner(name)&director.name=eq.Albert
 HTTP 204
 
 
